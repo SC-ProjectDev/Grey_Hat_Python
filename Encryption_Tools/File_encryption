@@ -1,0 +1,95 @@
+import os
+import hashlib  # Import hashlib for SHA-256 hashing
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+
+def encrypt_file(password, plaintext, output_file):
+    # Generate encryption key from password using SHA-256
+    key = hashlib.sha256(password.encode()).digest()  # 256-bit key for AES
+    print("Key length:", len(key))  # Print the length of the derived key
+
+    # Generate random IV (Initialization Vector)
+    iv = os.urandom(16)
+
+    # Pad the plaintext
+    padder = padding.PKCS7(algorithms.AES.block_size).padder()
+    padded_data = padder.update(plaintext) + padder.finalize()
+
+    # Encrypt the data
+    cipher = Cipher(algorithms.AES(key), modes.CFB(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+    ciphertext = encryptor.update(padded_data) + encryptor.finalize()
+
+    # Write IV and encrypted data to output file
+    with open(output_file, 'wb') as f:
+        f.write(iv)
+        f.write(ciphertext)
+
+def decrypt_file(password, input_file, output_file):
+    # Generate decryption key from password using SHA-256
+    key = hashlib.sha256(password.encode()).digest()  # 256-bit key for AES
+    print("Key length:", len(key))  # Print the length of the derived key
+
+    # Read IV and ciphertext from input file
+    with open(input_file, 'rb') as f:
+        iv = f.read(16)
+        ciphertext = f.read()
+
+    # Decrypt the data
+    cipher = Cipher(algorithms.AES(key), modes.CFB(iv), backend=default_backend())
+    decryptor = cipher.decryptor()
+    decrypted_data = decryptor.update(ciphertext) + decryptor.finalize()
+
+    # Unpad the plaintext
+    unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
+    plaintext = unpadder.update(decrypted_data) + unpadder.finalize()
+
+    # Write decrypted data to output file
+    with open(output_file, 'wb') as f:
+        f.write(plaintext)
+
+def encrypt_folder(password, input_folder, output_folder):
+    # Create output folder if it doesn't exist
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    # Iterate through files in input folder
+    for root, directories, files in os.walk(input_folder):
+        for filename in files:
+            input_file_path = os.path.join(root, filename)
+            output_file_path = os.path.join(output_folder, filename + ".enc")
+            with open(input_file_path, 'rb') as f:
+                input_data = f.read()
+            # Call your encrypt_file function here
+            encrypt_file(password, input_data, output_file_path)
+
+def decrypt_folder(password, input_folder, output_folder):
+    # Create output folder if it doesn't exist
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    # Iterate through files in input folder
+    for root, directories, files in os.walk(input_folder):
+        for filename in files:
+            if filename.endswith(".enc"):
+                input_file_path = os.path.join(root, filename)
+                output_file_path = os.path.join(output_folder, filename[:-4])
+                # Call your decrypt_file function here
+                decrypt_file(password, input_file_path, output_file_path)
+
+# Example usage 
+# Replace YourStrongPassword test_folder encrypted_folder and decrypted_folder with appropriate values according to your setup.
+if __name__ == "__main__":
+    password = "YourStrongPassword"  # Ensure consistency with the password used in encrypt_file and decrypt_file functions
+    input_folder = "Test_Folder"
+    encrypted_folder = "encrypted_folder"
+    decrypted_folder = "decrypted_folder"
+
+    # Encrypt folder
+    encrypt_folder(password, input_folder, encrypted_folder)
+    print("Folder encrypted.")
+
+    # Decrypt folder
+    decrypt_folder(password, encrypted_folder, decrypted_folder)
+    print("Folder decrypted.")
